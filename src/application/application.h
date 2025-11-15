@@ -1,0 +1,29 @@
+#ifndef APPLICATION_H
+#define APPLICATION_H
+#include "SDL3/SDL.h"
+#include "../scene/scene.h"
+#include "../renderer/renderer.h" 
+
+namespace Wrench {
+    
+    struct Statistics {
+        float frame_time_ms;
+    };
+
+
+    class Application
+    {
+        Statistics stats;
+
+        struct SDL_Window* m_window {nullptr};
+        Scene* m_scene{nullptr};
+        Renderer *m_renderer;
+
+    public:
+        bool init() noexcept;
+        void run() noexcept;
+        void exit() noexcept;
+    };
+
+}; // namespace Wrench
+#endif // APPLICATION_H!APPLICATION_H

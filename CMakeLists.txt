@@ -34,7 +34,6 @@ file(GLOB_RECURSE HEADER_FILES
 	${CMAKE_CURRENT_SOURCE_DIR}/src/*.inl
 	${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
 )
-source_group("Headers" ${HEADER_FILES})
 
 # shader files TODO: remove non-slang stuff
 file(GLOB_RECURSE SHADER_FILES 
@@ -54,20 +53,30 @@ set_source_files_properties(${SHADER_FILES}
 	VS_TOOL_OVERRIDE
 	"None"
 )
-source_group("Shaders" ${SHADER_FILES})
 
 # implementation files
 file(GLOB_RECURSE SOURCE_FILES
 	CONFIGURE_DEPENDS
 	${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
 )
-source_group("Source" ${SOURCE_FILES})
 
+function(assign_source_group arg1)
+    foreach(_source IN ITEMS ${ARGN})
+        get_filename_component(PARENT_DIR "${_source}" DIRECTORY)
+        string(REPLACE "${CMAKE_CURRENT_SOURCE_DIR}/include" "" GROUP "${PARENT_DIR}")
+        string(REPLACE "${CMAKE_CURRENT_SOURCE_DIR}/src" "" GROUP "${GROUP}")
+        string(REPLACE "${CMAKE_CURRENT_SOURCE_DIR}" "" GROUP "${GROUP}")
+        source_group("${arg1}/${GROUP}" FILES ${_source})
+    endforeach()
+endfunction(assign_source_group)
+assign_source_group("Sources" ${SOURCE_FILES})
+assign_source_group("Shaders" ${SHADER_FILES})
+assign_source_group("Headers" ${HEADER_FILES})
 
 # set up the target executable
 add_executable(${EXECUTABLE_NAME})
 target_sources(${EXECUTABLE_NAME} 
-	PRIVATE ${SOURCE_FILES} ${INLINE_FILES} ${SHADER_FILES} 
+    PRIVATE ${SOURCE_FILES} ${INLINE_FILES} ${SHADER_FILES} ${HEADER_FILES}
 )
 target_compile_features(${EXECUTABLE_NAME} PUBLIC cxx_std_20)
 target_compile_options(${EXECUTABLE_NAME} PRIVATE
@@ -77,11 +86,9 @@ target_compile_options(${EXECUTABLE_NAME} PRIVATE
 #	-D_SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING
 #	-D_SILENCE_CXX17_OLD_ALLOCATOR_MEMBERS_DEPRECATION_WARNING
 )
+# link third party libraries via interface
+target_link_libraries(${EXECUTABLE_NAME} PRIVATE third_party)
 
-#add_custom_command(TARGET ${EXECUTABLE_NAME} POST_BUILD
-#	COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_RUNTIME_DLLS:${EXECUTABLE_NAME}> $<TARGET_FILE_DIR:${EXECUTABLE_NAME}>
-#	COMMAND_EXPAND_LISTS
-#)
 
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES
 	VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
