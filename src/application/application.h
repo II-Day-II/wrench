@@ -4,6 +4,7 @@
 #include "../scene/scene.h"
 #include "../renderer/renderer.h" 
 
+
 namespace Wrench {
     
     struct Statistics {
@@ -26,4 +27,4 @@ namespace Wrench {
     };
 
 }; // namespace Wrench
-#endif // APPLICATION_H!APPLICATION_H
+#endif // !APPLICATION_H

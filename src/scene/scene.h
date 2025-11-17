@@ -10,4 +10,4 @@ namespace Wrench {
 	};
 
 }; // namespace Wrench
-#endif // !SCENE_HSCENE_H
+#endif // !SCENE_H

@@ -87,7 +87,9 @@ target_compile_options(${EXECUTABLE_NAME} PRIVATE
 #	-D_SILENCE_CXX17_OLD_ALLOCATOR_MEMBERS_DEPRECATION_WARNING
 )
 # link third party libraries via interface
-target_link_libraries(${EXECUTABLE_NAME} PRIVATE third_party)
+target_link_libraries(${EXECUTABLE_NAME} PRIVATE
+    third_party
+)
 
 
 set_target_properties(${EXECUTABLE_NAME} PROPERTIES
