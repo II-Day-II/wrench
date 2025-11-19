@@ -12,11 +12,13 @@ namespace Wrench {
 
         m_window = SDL_CreateWindow("Wrench renderer", 1700, 900, window_flags);
 
+        bool vulkan_ok = init_vulkan(ctx);
+
         bool window_ok = m_window != nullptr;
 
         bool renderer_ok = m_renderer->init(m_window);
 
-        return sdl_ok && window_ok && renderer_ok;
+        return sdl_ok && window_ok && vulkan_ok && renderer_ok;
     }
 
     void Application::run() noexcept
@@ -43,7 +45,7 @@ namespace Wrench {
             elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
             stats.frame_time_ms = elapsed.count() / 1000.0f;
             start = end;
-            SDL_LogTrace(SDL_LOG_CATEGORY_APPLICATION, "Frame time was %d ms", stats.frame_time_ms);
+            SDL_LogTrace(SDL_LOG_CATEGORY_APPLICATION, "Frame time was %f ms", stats.frame_time_ms);
         }
     }
 

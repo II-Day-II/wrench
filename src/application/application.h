@@ -3,7 +3,7 @@
 #include "SDL3/SDL.h"
 #include "../scene/scene.h"
 #include "../renderer/renderer.h" 
-
+#include "../vulkan_ctx/vulkan_ctx.h"
 
 namespace Wrench {
     
@@ -18,7 +18,8 @@ namespace Wrench {
 
         struct SDL_Window* m_window {nullptr};
         Scene* m_scene{nullptr};
-        Renderer *m_renderer;
+        Renderer* m_renderer{ nullptr };
+        VulkanCtx ctx{ 0 };
 
     public:
         bool init() noexcept;
