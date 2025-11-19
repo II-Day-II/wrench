@@ -6,13 +6,28 @@ namespace Wrench {
 
     bool Application::init() noexcept
     {
+        SDL_SetLogPriorityPrefix(SDL_LOG_PRIORITY_INVALID, "[INVALID]: ");
+        SDL_SetLogPriorityPrefix(SDL_LOG_PRIORITY_TRACE, "[TRACE]: ");
+        SDL_SetLogPriorityPrefix(SDL_LOG_PRIORITY_DEBUG, "[DEBUG]: ");
+        SDL_SetLogPriorityPrefix(SDL_LOG_PRIORITY_INFO, "[INFO]: ");
+        SDL_SetLogPriorityPrefix(SDL_LOG_PRIORITY_WARN, "[WARNING]: ");
+        SDL_SetLogPriorityPrefix(SDL_LOG_PRIORITY_ERROR, "[ERROR]: ");
+
+
+#ifdef _DEBUG
+        SDL_SetLogPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_DEBUG);
+#else
+        SDL_SetLogPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_INFO);
+#endif
+
+
         bool sdl_ok = SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);
 
         SDL_WindowFlags window_flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
 
-        m_window = SDL_CreateWindow("Wrench renderer", 1700, 900, window_flags);
+        m_window = SDL_CreateWindow("Wrench Renderer", 1700, 900, window_flags);
 
-        bool vulkan_ok = init_vulkan(ctx);
+        bool vulkan_ok = init_vulkan(ctx, m_window);
 
         bool window_ok = m_window != nullptr;
 
@@ -45,12 +60,12 @@ namespace Wrench {
             elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
             stats.frame_time_ms = elapsed.count() / 1000.0f;
             start = end;
-            SDL_LogTrace(SDL_LOG_CATEGORY_APPLICATION, "Frame time was %f ms", stats.frame_time_ms);
         }
     }
 
     void Application::exit() noexcept
     {
+        ctx.cleanup();
         SDL_DestroyWindow(m_window);
         SDL_Quit();
     }

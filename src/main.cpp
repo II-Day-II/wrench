@@ -10,7 +10,7 @@ int main(int argc, char *argv[])
     {
         SDL_Log("%s", argv[i]);
     }
-    
+
     Wrench::Application app;
 
     if (app.init())
