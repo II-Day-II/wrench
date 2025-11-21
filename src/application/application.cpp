@@ -8,6 +8,7 @@ namespace Wrench {
     {
         SDL_SetLogPriorityPrefix(SDL_LOG_PRIORITY_INVALID, "[INVALID]: ");
         SDL_SetLogPriorityPrefix(SDL_LOG_PRIORITY_TRACE, "[TRACE]: ");
+        SDL_SetLogPriorityPrefix(SDL_LOG_PRIORITY_VERBOSE, "[VERBOSE]: ");
         SDL_SetLogPriorityPrefix(SDL_LOG_PRIORITY_DEBUG, "[DEBUG]: ");
         SDL_SetLogPriorityPrefix(SDL_LOG_PRIORITY_INFO, "[INFO]: ");
         SDL_SetLogPriorityPrefix(SDL_LOG_PRIORITY_WARN, "[WARNING]: ");
@@ -27,11 +28,12 @@ namespace Wrench {
 
         m_window = SDL_CreateWindow("Wrench Renderer", 1700, 900, window_flags);
 
-        bool vulkan_ok = init_vulkan(ctx, m_window);
-
+        m_ctx = std::make_shared<VulkanCtx>(m_window);
+        bool vulkan_ok = m_ctx->initialized;
+        
         bool window_ok = m_window != nullptr;
 
-        bool renderer_ok = m_renderer->init(m_window);
+        bool renderer_ok = m_renderer.init(m_ctx);
 
         return sdl_ok && window_ok && vulkan_ok && renderer_ok;
     }
@@ -41,7 +43,7 @@ namespace Wrench {
         SDL_Event e;
         bool quit = false;
         auto start = std::chrono::system_clock::now();
-        auto elapsed = std::chrono::microseconds(16'000);
+        auto elapsed = std::chrono::microseconds(16'000); // assume 16 milliseconds for first frame
         while (!quit)
         {
             while (SDL_PollEvent(&e))
@@ -53,8 +55,8 @@ namespace Wrench {
                 // TODO: handle SDL events, both locally and for imgui
             }
 
-            m_scene->update(elapsed.count() / 1'000'000.0f);
-            m_renderer->render(m_scene);
+            m_scene->update(elapsed.count() / 1'000'000.0f); // to seconds
+            m_renderer.render(m_scene);
 
             auto end = std::chrono::system_clock::now();
             elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
@@ -65,7 +67,7 @@ namespace Wrench {
 
     void Application::exit() noexcept
     {
-        ctx.cleanup();
+        m_ctx->cleanup();
         SDL_DestroyWindow(m_window);
         SDL_Quit();
     }

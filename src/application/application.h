@@ -1,5 +1,6 @@
 #ifndef APPLICATION_H
 #define APPLICATION_H
+#include <memory>
 #include "SDL3/SDL.h"
 #include "../scene/scene.h"
 #include "../renderer/renderer.h" 
@@ -18,8 +19,8 @@ namespace Wrench {
 
         struct SDL_Window* m_window {nullptr};
         Scene* m_scene{nullptr};
-        Renderer* m_renderer{ nullptr };
-        VulkanCtx ctx{ 0 };
+        Renderer m_renderer;
+        std::shared_ptr<VulkanCtx> m_ctx;
 
     public:
         bool init() noexcept;
