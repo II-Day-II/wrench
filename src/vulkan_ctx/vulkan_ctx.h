@@ -1,10 +1,21 @@
 #ifndef VULKAN_CTX_H
 #define VULKAN_CTX_H
 
+#include <iostream>
 #include "vulkan/vulkan.h"
+#include "vulkan/vk_enum_string_helper.h"
 #include "SDL3/SDL.h"
 #include "vk_mem_alloc.h"
 #include "../util/util.h"
+
+#define VK_CHECK_MACRO(x)   \
+	do {					\
+		VkResult err = x;	\
+		if (err) {          \
+			std::cout << "Vulkan error: [" << string_VkResult(err) << "]" << std::endl;\
+			abort();        \
+		}                   \
+	} while (false);
 
 namespace Wrench 
 {

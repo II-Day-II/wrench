@@ -6,12 +6,15 @@ namespace Wrench {
     bool Renderer::init(std::shared_ptr<VulkanCtx> &vk_ctx) noexcept
     {
         this->ctx = vk_ctx;
-        return init_swapchain();
+        bool swapchain_ok = init_swapchain;
+        init_frame_data();
+        init_sync_structures();
+        return swapchain_ok;
     }
 
     void Renderer::render([[maybe_unused]] Scene *scene) noexcept
     {
-
+        m_frame_idx += 1;
     }
 
     void Renderer::cleanup() noexcept
@@ -40,7 +43,7 @@ namespace Wrench {
         // allocate using VMA
         // this is reused for the depth texture as well
         VmaAllocationCreateInfo draw_img_allocation_info{};
-        draw_img_allocation_info.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+        draw_img_allocation_info.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
         draw_img_allocation_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
         vmaCreateImage(ctx->allocator, &draw_img_create_info, &draw_img_allocation_info, &m_draw_image.image, &m_draw_image.allocation, nullptr);
@@ -111,6 +114,37 @@ namespace Wrench {
         {
             vkDestroyImageView(ctx->device, m_swapchain.image_views[i], nullptr);
         }
+    }
+
+    void Renderer::init_frame_data() noexcept
+    {
+        // create command pool and main command buffer for each frame in flight
+        // allow resetting of individual buffers
+        VkCommandPoolCreateFlags flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+        VkCommandPoolCreateInfo cmd_pool_cinfo = vkinit::command_pool_create_info(ctx->gfx_queue_index, flags);
+        for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++)
+        {
+            FrameData& tgt_frame = get_current_frame();
+            VK_CHECK_MACRO(vkCreateCommandPool(ctx->device, &cmd_pool_cinfo, nullptr, &tgt_frame.command_pool));
+            VkCommandBufferAllocateInfo cmd_alloc_info = vkinit::command_buffer_allocate_info(tgt_frame.command_pool, 1);
+            VK_CHECK_MACRO(vkAllocateCommandBuffers(ctx->device, &cmd_alloc_info, &tgt_frame.main_cmd_buf));
+            ctx->deletion_queue.push_function([=]() 
+                {
+                    vkDestroyCommandPool(ctx->device, tgt_frame.command_pool, nullptr);
+                }
+            );
+        }
+        // TODO: imgui pool and command buffer here
+    }
+
+    void Renderer::init_sync_structures() noexcept
+    {
+
+    }
+
+    FrameData& Renderer::get_current_frame() noexcept
+    {
+        return m_frame_data[m_frame_idx % FRAMES_IN_FLIGHT];
     }
 
     // TODO: handle correctly

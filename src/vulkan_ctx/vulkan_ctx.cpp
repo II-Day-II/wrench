@@ -13,6 +13,7 @@ namespace Wrench {
 		auto inst_ret = inst_builder.set_app_name("Wrench Renderer")
 			.request_validation_layers()
 			.use_default_debug_messenger()
+			.require_api_version(1, 3, 0) // important so buffer device address doesn't require extension
 			.build();
 		if (!inst_ret) 
 		{
