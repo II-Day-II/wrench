@@ -1,6 +1,7 @@
+#include <chrono>
+#include "../util/util.h"
 #include "application.h"
 #include "SDL3/SDL.h"
-#include <chrono>
 
 namespace Wrench {
 
@@ -26,7 +27,7 @@ namespace Wrench {
 
         SDL_WindowFlags window_flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
 
-        m_window = SDL_CreateWindow("Wrench Renderer", 1700, 900, window_flags);
+        m_window = SDL_CreateWindow("Wrench Renderer", util::Constants::DEFAULT_WINDOW_WIDTH, util::Constants::DEFAULT_WINDOW_HEIGHT, window_flags);
 
         m_ctx = std::make_shared<VulkanCtx>(m_window);
         bool vulkan_ok = m_ctx->initialized;
@@ -67,6 +68,7 @@ namespace Wrench {
 
     void Application::exit() noexcept
     {
+        m_renderer.cleanup();
         m_ctx->cleanup();
         SDL_DestroyWindow(m_window);
         SDL_Quit();

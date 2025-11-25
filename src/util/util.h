@@ -6,6 +6,11 @@ namespace Wrench
 {
 namespace util 
 {
+    namespace Constants {
+        constexpr uint32_t const DEFAULT_WINDOW_WIDTH = 1700;
+        constexpr uint32_t const DEFAULT_WINDOW_HEIGHT = 900;
+    };
+
     struct DeletionQueue 
     {
         std::stack<std::function<void()>> deletors;

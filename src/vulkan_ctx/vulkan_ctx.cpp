@@ -31,7 +31,7 @@ namespace Wrench {
 		features_1_3.synchronization2 = true;
 
 		VkPhysicalDeviceVulkan12Features features_1_2{};
-		features_1_2.bufferDeviceAddress = true;
+		features_1_2.bufferDeviceAddress = true; // TODO: this isn't working..?
 		features_1_2.descriptorIndexing = true;
 
 		// get VkPhysicalDevice
@@ -65,7 +65,7 @@ namespace Wrench {
 			return;
 		}
 		gfx_queue_index = vkb_device.get_queue_index(vkb::QueueType::graphics).value();
-
+		
 		// store context
 		gfx_queue = gfx_queue_ret.value();
 		device = vkb_device.device;
