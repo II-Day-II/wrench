@@ -1,11 +1,16 @@
 #include "vulkan_ctx.h"
 #include "SDL3/SDL_Vulkan.h"
 #include "VkBootstrap.h"
+#include "../renderer/vk_init.h"
 
 
 namespace Wrench {
 
-	
+	void vk_check_fn(VkResult res)
+	{
+		VK_CHECK_MACRO(res);
+	}
+
 	VulkanCtx::VulkanCtx(SDL_Window* window) noexcept
 	{
 		// get VkInstance
@@ -86,9 +91,35 @@ namespace Wrench {
 			return;
 		}
 
+		// create immediate mode command pool and cmd buffer
+		VkCommandPoolCreateInfo pool_cinfo = vkinit::command_pool_create_info(gfx_queue_index, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+		VkResult command_pool_ok = vkCreateCommandPool(device, &pool_cinfo, nullptr, &immediate_command_pool);
+		if (command_pool_ok != VK_SUCCESS)
+		{
+			SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create immediate mode command pool!");
+			return;
+		}
+		VkCommandBufferAllocateInfo cmd_allocinfo = vkinit::command_buffer_allocate_info(immediate_command_pool, 1);
+		VkResult cmd_buf_ok = vkAllocateCommandBuffers(device, &cmd_allocinfo, &immediate_command_buffer);
+		if (cmd_buf_ok != VK_SUCCESS)
+		{
+			SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to allocate immediate mode command buffer!");
+			return;
+		}
+		// create immediate mode fence
+		VkFenceCreateInfo fence_cinfo = vkinit::fence_create_info(VK_FENCE_CREATE_SIGNALED_BIT);
+		VkResult fence_ok = vkCreateFence(device, &fence_cinfo, nullptr, &immediate_fence);
+		if (fence_ok != VK_SUCCESS)
+		{
+			SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create immediate mode fence!");
+			return;
+		}
+
 		// remember reverse creation order
 		deletion_queue.push_function([&]() 
 			{
+				vkDestroyFence(device, immediate_fence, nullptr);
+				vkDestroyCommandPool(device, immediate_command_pool, nullptr);
 				vmaDestroyAllocator(allocator);
 				vkDestroyDevice(device, nullptr);
 				SDL_Vulkan_DestroySurface(instance, surface, nullptr);
@@ -108,6 +139,25 @@ namespace Wrench {
 
 		// flush remaining resources in the queue (recorded in or after init_vulkan)
 		deletion_queue.flush();
+	}
+
+	void VulkanCtx::immediate_submit(std::function<void(VkCommandBuffer cmd)> &&function)
+	{
+		VK_CHECK_MACRO(vkResetFences(device, 1, &immediate_fence));
+		VK_CHECK_MACRO(vkResetCommandBuffer(immediate_command_buffer, 0));
+
+		VkCommandBuffer cmd = immediate_command_buffer;
+		VkCommandBufferBeginInfo begin_info = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+		VK_CHECK_MACRO(vkBeginCommandBuffer(cmd, &begin_info));
+		function(cmd);
+		VK_CHECK_MACRO(vkEndCommandBuffer(cmd));
+
+		VkCommandBufferSubmitInfo cmd_submit_info = vkinit::command_buffer_submit_info(cmd);
+		VkSubmitInfo2 submit_info = vkinit::submit_info(&cmd_submit_info, nullptr, nullptr);
+
+		VK_CHECK_MACRO(vkQueueSubmit2(gfx_queue, 1, &submit_info, immediate_fence));
+		VK_CHECK_MACRO(vkWaitForFences(device, 1, &immediate_fence, true, 9999999)); // TODO: potenially use another queue if available, maybe even multithread this?
+
 	}
 
 }; // namespace Wrench

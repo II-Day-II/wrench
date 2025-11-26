@@ -45,7 +45,7 @@ namespace Wrench {
         bool create_swapchain(uint32_t width, uint32_t height) noexcept;
         void destroy_swapchain() noexcept;
         void init_frame_data() noexcept;
-        void init_sync_structures() noexcept;
+        void init_imgui() noexcept;
         FrameData& get_current_frame() noexcept;
 
         VkExtent2D m_window_extent{util::Constants::DEFAULT_WINDOW_WIDTH, util::Constants::DEFAULT_WINDOW_HEIGHT};

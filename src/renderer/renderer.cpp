@@ -1,5 +1,8 @@
 #include "renderer.h"
 #include "VkBootstrap.h"
+#include "imgui.h"
+#include "backends/imgui_impl_vulkan.h"
+#include "backends/imgui_impl_sdl3.h"
 
 namespace Wrench {
 
@@ -8,7 +11,7 @@ namespace Wrench {
         this->ctx = vk_ctx;
         bool swapchain_ok = init_swapchain();
         init_frame_data();
-        init_sync_structures();
+        init_imgui();
         return swapchain_ok;
     }
 
@@ -19,6 +22,9 @@ namespace Wrench {
 
     void Renderer::cleanup() noexcept
     {
+        ImGui_ImplVulkan_Shutdown();
+        ImGui_ImplSDL3_Shutdown();
+        ImGui::DestroyContext();
         destroy_swapchain();
     }
 
@@ -122,26 +128,90 @@ namespace Wrench {
         // allow resetting of individual buffers
         VkCommandPoolCreateFlags flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
         VkCommandPoolCreateInfo cmd_pool_cinfo = vkinit::command_pool_create_info(ctx->gfx_queue_index, flags);
+        // also create sync structures per frame:
+        // 1 fence to block cpu until gpu is done with frame,
+        // 1 semaphore to wait for swapchain to give us a texture,
+        // 1 semaphore to make swapchain wait for us to finish working with the image
+        VkFenceCreateInfo fence_cinfo = vkinit::fence_create_info(VK_FENCE_CREATE_SIGNALED_BIT);
+        VkSemaphoreCreateInfo semaphore_cinfo = vkinit::semaphore_create_info();
         for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++)
         {
             FrameData& tgt_frame = get_current_frame();
+            // command buffers and pools
             // TODO: why do I need one command pool per frame?
             VK_CHECK_MACRO(vkCreateCommandPool(ctx->device, &cmd_pool_cinfo, nullptr, &tgt_frame.command_pool));
             VkCommandBufferAllocateInfo cmd_alloc_info = vkinit::command_buffer_allocate_info(tgt_frame.command_pool, 1);
             VK_CHECK_MACRO(vkAllocateCommandBuffers(ctx->device, &cmd_alloc_info, &tgt_frame.main_cmd_buf));
-            // remember to delete command pools when done
+
+            // fences and semaphores
+            VK_CHECK_MACRO(vkCreateFence(ctx->device, &fence_cinfo, nullptr, &tgt_frame.render_fence));
+            VK_CHECK_MACRO(vkCreateSemaphore(ctx->device, &semaphore_cinfo, nullptr, &tgt_frame.render_semaphore));
+            VK_CHECK_MACRO(vkCreateSemaphore(ctx->device, &semaphore_cinfo, nullptr, &tgt_frame.swapchain_semaphore));
+            // remember to delete command pools and sync stuff when done
             ctx->deletion_queue.push_function([=]() 
                 {
                     vkDestroyCommandPool(ctx->device, tgt_frame.command_pool, nullptr);
+
+                    vkDestroyFence(ctx->device, tgt_frame.render_fence, nullptr);
+                    vkDestroySemaphore(ctx->device, tgt_frame.render_semaphore, nullptr);
+                    vkDestroySemaphore(ctx->device, tgt_frame.swapchain_semaphore, nullptr);
                 }
             );
         }
-        // TODO: imgui pool and command buffer here
     }
 
-    void Renderer::init_sync_structures() noexcept
+    // TODO: move imgui to a node in the render graph
+    void Renderer::init_imgui() noexcept
     {
+        // init imgui
+        ImGui::CreateContext();
+        ImGuiIO& io = ImGui::GetIO();
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
+        ImGui_ImplSDL3_InitForVulkan(ctx->window);
+        // create descriptor pool for imgui
+        // may be a bit overkill with this size
+        VkDescriptorPoolSize pool_sizes[] = {
+            {VK_DESCRIPTOR_TYPE_SAMPLER, 1000}
+            , {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000}
+            , {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000}
+            , {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000}
+            , {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000}
+            , {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000}
+            , {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000}
+            , {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000}
+            , {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000}
+            , {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000}
+            , {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}
+        };
+
+        VkDescriptorPoolCreateInfo pool_info{.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+        pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+        pool_info.poolSizeCount = (uint32_t)std::size(pool_sizes);
+        pool_info.pPoolSizes = pool_sizes;
+        pool_info.maxSets = 1000; // probably overkill
+        VkDescriptorPool imgui_descriptor_pool;
+        VK_CHECK_MACRO(vkCreateDescriptorPool(ctx->device, &pool_info, nullptr, &imgui_descriptor_pool));
+        
+        ImGui_ImplVulkan_InitInfo imgui_init_info{};
+        imgui_init_info.Instance = ctx->instance;
+        imgui_init_info.PhysicalDevice = ctx->physical_device;
+        imgui_init_info.Device = ctx->device;
+        imgui_init_info.QueueFamily = ctx->gfx_queue_index; // i think this is right
+        imgui_init_info.Queue = ctx->gfx_queue;
+        imgui_init_info.MinImageCount = 2; // 3?
+        imgui_init_info.ImageCount = 2; // 3?
+        imgui_init_info.CheckVkResultFn = vk_check_fn;
+        imgui_init_info.UseDynamicRendering = true;
+        imgui_init_info.DescriptorPool = imgui_descriptor_pool;
+        // TODO: Do I need the renderpass bullshit here when using dynamic rendering?
+        ImGui_ImplVulkan_Init(&imgui_init_info);
+
+        ctx->deletion_queue.push_function([=]() 
+            {
+                vkDestroyDescriptorPool(ctx->device, imgui_descriptor_pool, nullptr);
+            }
+        );
     }
 
     FrameData& Renderer::get_current_frame() noexcept

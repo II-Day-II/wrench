@@ -13,12 +13,15 @@
 		VkResult err = x;	\
 		if (err) {          \
 			std::cout << "Vulkan error: [" << string_VkResult(err) << "]" << std::endl;\
-			abort();        \
+			if (err < 0)    \
+				abort();    \
 		}                   \
 	} while (false);
 
 namespace Wrench 
 {
+	void vk_check_fn(VkResult res);
+	
 	struct VulkanCtx 
 	{
 		VkInstance instance = VK_NULL_HANDLE;
@@ -29,6 +32,10 @@ namespace Wrench
 
 		VkSurfaceKHR surface = VK_NULL_HANDLE;
 		VkDebugUtilsMessengerEXT debug_messenger = VK_NULL_HANDLE;
+
+		VkCommandPool immediate_command_pool = VK_NULL_HANDLE;
+		VkCommandBuffer immediate_command_buffer = VK_NULL_HANDLE;
+		VkFence immediate_fence = VK_NULL_HANDLE;
 
 		VmaAllocator allocator = VK_NULL_HANDLE;
 		util::DeletionQueue deletion_queue;
@@ -42,6 +49,8 @@ namespace Wrench
 		VulkanCtx(SDL_Window* window) noexcept;
 		VulkanCtx(const VulkanCtx&) = delete;
 		VulkanCtx(VulkanCtx&&) = delete;
+
+		void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function);
 	};
 }; // namespace Wrench
 

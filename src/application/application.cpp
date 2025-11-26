@@ -1,7 +1,11 @@
 #include <chrono>
+#include <thread>
 #include "../util/util.h"
 #include "application.h"
 #include "SDL3/SDL.h"
+#include "imgui.h"
+#include "backends/imgui_impl_sdl3.h"
+#include "backends/imgui_impl_vulkan.h"
 
 namespace Wrench {
 
@@ -36,6 +40,8 @@ namespace Wrench {
 
         bool renderer_ok = m_renderer.init(m_ctx);
 
+       
+
         return sdl_ok && window_ok && vulkan_ok && renderer_ok;
     }
 
@@ -43,6 +49,7 @@ namespace Wrench {
     {
         SDL_Event e;
         bool quit = false;
+        bool pause_rendering = false;
         auto start = std::chrono::system_clock::now();
         auto elapsed = std::chrono::microseconds(16'000); // assume 16 milliseconds for first frame
         while (!quit)
@@ -57,11 +64,36 @@ namespace Wrench {
                 {
                     m_renderer.resize();
                 }
+                else if (e.type == SDL_EventType::SDL_EVENT_WINDOW_MINIMIZED)
+                {
+                    pause_rendering = true;
+                    SDL_LogDebug(0, "Rendering has been paused due to window minimized.");
+                }
+                else if (e.type == SDL_EventType::SDL_EVENT_WINDOW_RESTORED)
+                {
+                    pause_rendering = false;
+                    SDL_LogDebug(0, "Rendering resumed due to window restored");
+                }
                 // TODO: handle SDL events, both locally and for imgui
+                ImGui_ImplSDL3_ProcessEvent(&e);
             }
 
+            if (pause_rendering)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                continue;
+            }
+
+            ImGui_ImplVulkan_NewFrame();
+            ImGui_ImplSDL3_NewFrame();
+            ImGui::NewFrame();
+            ImGui::ShowDemoWindow(); 
+
+            ImGui::Render();
+
             m_scene->update(elapsed.count() / 1'000'000.0f); // to seconds
-            m_renderer.render(m_scene);
+            m_renderer.render(m_scene); // TODO: also call ImGui_ImplVulkan_RenderDrawData()
+
 
             auto end = std::chrono::system_clock::now();
             elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
