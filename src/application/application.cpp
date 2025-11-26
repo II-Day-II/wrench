@@ -49,9 +49,13 @@ namespace Wrench {
         {
             while (SDL_PollEvent(&e))
             {
-                if (e.type == SDL_EVENT_QUIT)
+                if (e.type == SDL_EventType::SDL_EVENT_QUIT)
                 {
                     quit = true;
+                }
+                else if (e.type == SDL_EventType::SDL_EVENT_WINDOW_RESIZED)
+                {
+                    m_renderer.resize();
                 }
                 // TODO: handle SDL events, both locally and for imgui
             }

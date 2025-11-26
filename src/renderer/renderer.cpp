@@ -6,7 +6,7 @@ namespace Wrench {
     bool Renderer::init(std::shared_ptr<VulkanCtx> &vk_ctx) noexcept
     {
         this->ctx = vk_ctx;
-        bool swapchain_ok = init_swapchain;
+        bool swapchain_ok = init_swapchain();
         init_frame_data();
         init_sync_structures();
         return swapchain_ok;
@@ -125,9 +125,11 @@ namespace Wrench {
         for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++)
         {
             FrameData& tgt_frame = get_current_frame();
+            // TODO: why do I need one command pool per frame?
             VK_CHECK_MACRO(vkCreateCommandPool(ctx->device, &cmd_pool_cinfo, nullptr, &tgt_frame.command_pool));
             VkCommandBufferAllocateInfo cmd_alloc_info = vkinit::command_buffer_allocate_info(tgt_frame.command_pool, 1);
             VK_CHECK_MACRO(vkAllocateCommandBuffers(ctx->device, &cmd_alloc_info, &tgt_frame.main_cmd_buf));
+            // remember to delete command pools when done
             ctx->deletion_queue.push_function([=]() 
                 {
                     vkDestroyCommandPool(ctx->device, tgt_frame.command_pool, nullptr);
