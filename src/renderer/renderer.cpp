@@ -12,7 +12,8 @@ namespace Wrench {
         bool swapchain_ok = init_swapchain();
         init_frame_data();
         init_imgui();
-        return swapchain_ok;
+        bool render_graph_ok = m_render_graph.init();
+        return swapchain_ok && render_graph_ok;
     }
 
     void Renderer::render([[maybe_unused]] Scene *scene) noexcept

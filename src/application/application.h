@@ -18,7 +18,7 @@ namespace Wrench {
         Statistics stats;
 
         struct SDL_Window* m_window {nullptr};
-        Scene* m_scene{nullptr};
+        std::unique_ptr<Scene> m_scene;
         Renderer m_renderer;
         std::shared_ptr<VulkanCtx> m_ctx;
 

@@ -40,7 +40,7 @@ namespace Wrench {
 
         bool renderer_ok = m_renderer.init(m_ctx);
 
-       
+        m_scene = Scene::load_scene();
 
         return sdl_ok && window_ok && vulkan_ok && renderer_ok;
     }

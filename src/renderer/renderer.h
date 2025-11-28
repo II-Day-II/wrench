@@ -5,6 +5,7 @@
 #include "../scene/scene.h"
 #include "../vulkan_ctx/vulkan_ctx.h"
 #include "../util/util.h"
+#include "render_graph.h"
 #include "vk_init.h"
 #include "SDL3/SDL.h"
 
@@ -29,12 +30,15 @@ namespace Wrench {
         // DescriptorAllocator frame_descriptors;
     };
 
+ 
+
     constexpr uint32_t const FRAMES_IN_FLIGHT = 2;
 
     class Renderer
     {
         std::shared_ptr<VulkanCtx> ctx;
         Swapchain m_swapchain;
+        RenderGraph m_render_graph;
     public:
         bool init(std::shared_ptr<VulkanCtx> &vk_ctx) noexcept;
         void render(Scene *scene) noexcept;
