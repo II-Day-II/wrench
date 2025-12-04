@@ -18,6 +18,78 @@ namespace Wrench {
 
     void Renderer::render([[maybe_unused]] Scene *scene) noexcept
     {
+        FrameData& current_frame = get_current_frame();
+        // wait for last frame to finish
+        VK_CHECK_MACRO(vkWaitForFences(ctx->device, 1, &current_frame.render_fence, true, 99999999));
+        // delete old frame specific stuff
+        current_frame.deletion_queue.flush();
+        //current_frame.frame_descriptors.clear_pools();
+        
+        // reset render fence
+        VK_CHECK_MACRO(vkResetFences(ctx->device, 1, &current_frame.render_fence));
+
+        // get swapchain image, signal the current swapchain semaphore when ready
+        uint32_t swapchain_image_idx;
+        VkResult e = vkAcquireNextImageKHR(ctx->device, m_swapchain.swapchain, 100000000, current_frame.swapchain_semaphore, nullptr, &swapchain_image_idx);
+        if (e == VK_ERROR_OUT_OF_DATE_KHR)
+        {
+            // TODO: assume resize required if out of date
+            return;
+        }
+        else 
+        {
+            VK_CHECK_MACRO(e);
+        }
+
+        VkImage& swapchain_image = m_swapchain.images[swapchain_image_idx];
+
+        // TODO: scale handling?
+
+        // record command buffer
+        VkCommandBuffer cmd = current_frame.main_cmd_buf;
+        // reset old buffer. Safety: we waited for the fence and swapchain waited for this.
+        VK_CHECK_MACRO(vkResetCommandBuffer(cmd, 0));
+
+        // begin recording buffer for one-time submit.
+        VkCommandBufferBeginInfo cmd_begin_info = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+        VK_CHECK_MACRO(vkBeginCommandBuffer(cmd, &cmd_begin_info));
+
+        m_render_graph.render(); // TODO: get cmd and main draw image into here to draw stuff
+
+        // TODO: copy draw image to swapchain image
+
+        // end command buffer
+        VK_CHECK_MACRO(vkEndCommandBuffer(cmd));
+
+        // submit work to gpu
+        VkCommandBufferSubmitInfo cmd_info = vkinit::command_buffer_submit_info(cmd);
+        VkSemaphoreSubmitInfo wait_info = vkinit::semaphore_submit_info(VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, current_frame.swapchain_semaphore);
+        VkSemaphoreSubmitInfo signal_info = vkinit::semaphore_submit_info(VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, current_frame.render_semaphore);
+
+        VkSubmitInfo2 submit_info = vkinit::submit_info(&cmd_info, &signal_info, &wait_info);
+
+        // render_fence will be set once graphics work is done, so we can wait on it
+        VK_CHECK_MACRO(vkQueueSubmit2(ctx->gfx_queue, 1, &submit_info, current_frame.render_fence));
+
+        // present to screen once frame is ready
+        VkPresentInfoKHR present_info = {};
+        present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+        present_info.pSwapchains = &m_swapchain.swapchain;
+        present_info.swapchainCount = 1;
+        present_info.pWaitSemaphores = &current_frame.render_semaphore;
+        present_info.waitSemaphoreCount = 1;
+        present_info.pImageIndices = &swapchain_image_idx;
+
+        VkResult present_res = vkQueuePresentKHR(ctx->gfx_queue, &present_info);
+        if (present_res == VK_ERROR_OUT_OF_DATE_KHR)
+        {
+            // TODO: resize requested assumed here
+        }
+        else
+        {
+            VK_CHECK_MACRO(present_res);
+        }
+        // frame done!
         m_frame_idx += 1;
     }
 
