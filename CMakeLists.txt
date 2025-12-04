@@ -26,6 +26,67 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/third_party EXCLUDE_FROM_ALL)
 find_package(Vulkan REQUIRED)
 include_directories(${Vulkan_INCLUDE_DIRS})
 
+# the default FindVulkan module currently doesn't export slang,
+# so we'll find it manually 
+set(_Slang_hint_include_paths 
+    "$ENV{VULKAN_SDK}/include"
+)
+set(_Slang_hint_exe_paths
+    "$ENV{VULKAN_SDK}/bin"
+)
+set(_Slang_hint_lib_paths
+    "$ENV{VULKAN_SDK}/lib"
+    "$ENV{VULKAN_SDK}/bin"
+)
+find_path(Slang_INCLUDE_DIR
+    NAMES slang/slang.h
+    HINTS
+    ${_Slang_hint_include_paths}
+)
+mark_as_advanced(Slang_INCLUDE_DIR)
+find_library(Slang_LIBRARY
+    NAMES slang
+    HINTS
+    ${_Slang_hint_lib_paths}
+)
+mark_as_advanced(Slang_LIBRARY)
+find_library(Slang_DEBUG_LIBRARY
+    NAMES slangd
+    HINTS
+    ${_Slang_hint_lib_paths}
+)
+mark_as_advanced(Slang_DEBUG_LIBRARY)
+if((Slang_LIBRARY OR Slang_DEBUG_LIBRARY) AND NOT TARGET slang)
+    add_library(slang STATIC IMPORTED)
+    set_property(TARGET slang
+        PROPERTY
+        INTERFACE_INCLUDE_DIRECTORIES "${Slang_INCLUDE_DIR}")
+    if(Slang_LIBRARY)
+        set_property(TARGET slang APPEND
+            PROPERTY
+            IMPORTED_CONFIGURATIONS Release)
+        set_property(TARGET slang APPEND
+            PROPERTY
+            IMPORTED_LOCATION_RELEASE "${Slang_LIBRARY}")
+        message(STATUS "Found Slang Release mode")
+    endif()
+    if(Slang_DEBUG_LIBRARY)
+        set_property(TARGET slang APPEND
+            PROPERTY
+            IMPORTED_CONFIGURATIONS Debug)
+        set_property(TARGET slang APPEND
+            PROPERTY
+            IMPORTED_LOCATION_DEBUG "${Slang_DEBUG_LIBRARY}")
+        message(STATUS "Found Slang Debug mode")
+    endif()
+    if(UNIX)
+        find_package(Threads REQUIRED)
+        target_link_libraries(slang INTERFACE Threads::Threads)
+    endif()
+else()
+    message(FATAL "Failed to find Slang")
+endif()
+
 # specify project files
 # headers
 file(GLOB_RECURSE HEADER_FILES 
@@ -89,6 +150,7 @@ target_compile_options(${EXECUTABLE_NAME} PRIVATE
 # link third party libraries via interface
 target_link_libraries(${EXECUTABLE_NAME} PRIVATE
     third_party
+    slang
 )
 
 
