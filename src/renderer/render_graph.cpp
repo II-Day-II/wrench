@@ -5,6 +5,7 @@ namespace Wrench
     bool RenderGraph::init(std::shared_ptr<VulkanCtx> &ctx) noexcept
     {
         m_ctx = ctx;
+        return true;
     }
 
     void RenderGraph::render() noexcept

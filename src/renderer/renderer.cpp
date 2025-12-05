@@ -12,11 +12,11 @@ namespace Wrench {
         bool swapchain_ok = init_swapchain();
         init_frame_data();
         init_imgui();
-        bool render_graph_ok = m_render_graph.init();
+        bool render_graph_ok = m_render_graph.init(vk_ctx);
         return swapchain_ok && render_graph_ok;
     }
 
-    void Renderer::render([[maybe_unused]] Scene *scene) noexcept
+    void Renderer::render([[maybe_unused]] std::unique_ptr<Scene> &scene) noexcept
     {
         FrameData& current_frame = get_current_frame();
         // wait for last frame to finish
@@ -57,6 +57,7 @@ namespace Wrench {
         m_render_graph.render(); // TODO: get cmd and main draw image into here to draw stuff
 
         // TODO: copy draw image to swapchain image
+        [[maybe_unused]] auto _ = swapchain_image;
 
         // end command buffer
         VK_CHECK_MACRO(vkEndCommandBuffer(cmd));
@@ -209,7 +210,7 @@ namespace Wrench {
         VkSemaphoreCreateInfo semaphore_cinfo = vkinit::semaphore_create_info();
         for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++)
         {
-            FrameData& tgt_frame = get_current_frame();
+            FrameData& tgt_frame = m_frame_data[i];
             // command buffers and pools
             // TODO: why do I need one command pool per frame?
             VK_CHECK_MACRO(vkCreateCommandPool(ctx->device, &cmd_pool_cinfo, nullptr, &tgt_frame.command_pool));

@@ -41,7 +41,7 @@ namespace Wrench {
         RenderGraph m_render_graph;
     public:
         bool init(std::shared_ptr<VulkanCtx> &vk_ctx) noexcept;
-        void render(Scene *scene) noexcept;
+        void render(std::unique_ptr<Scene> &scene) noexcept;
         void resize();
         void cleanup() noexcept;
     private:
