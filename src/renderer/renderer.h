@@ -18,17 +18,19 @@ namespace Wrench {
         VkSwapchainKHR swapchain;
         std::vector<VkImage> images;
         std::vector<VkImageView> image_views;
+        std::vector<VkSemaphore> render_complete_semaphores;
     };
 
     struct FrameData
     {
         VkCommandPool command_pool;
         VkCommandBuffer main_cmd_buf;
-        VkSemaphore swapchain_semaphore, render_semaphore;
+        VkSemaphore swapchain_semaphore;
         VkFence render_fence;
         util::DeletionQueue deletion_queue;
         // DescriptorAllocator frame_descriptors;
     };
+
 
  
 
@@ -53,8 +55,7 @@ namespace Wrench {
         FrameData& get_current_frame() noexcept;
 
         VkExtent2D m_window_extent{util::Constants::DEFAULT_WINDOW_WIDTH, util::Constants::DEFAULT_WINDOW_HEIGHT};
-        AllocatedImage m_draw_image;
-        AllocatedImage m_depth_image;
+        DrawImages m_draw_images;
         FrameData m_frame_data[FRAMES_IN_FLIGHT];
         uint32_t m_frame_idx = 0;
 

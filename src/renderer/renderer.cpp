@@ -16,34 +16,40 @@ namespace Wrench {
         return swapchain_ok && render_graph_ok;
     }
 
-    void Renderer::render([[maybe_unused]] std::unique_ptr<Scene> &scene) noexcept
+    void Renderer::render([[maybe_unused]] std::unique_ptr<Scene>& scene) noexcept
     {
         FrameData& current_frame = get_current_frame();
         // wait for last frame to finish
-        VK_CHECK_MACRO(vkWaitForFences(ctx->device, 1, &current_frame.render_fence, true, 99999999));
-        // delete old frame specific stuff
-        current_frame.deletion_queue.flush();
-        //current_frame.frame_descriptors.clear_pools();
-        
+        VK_CHECK_MACRO(vkWaitForFences(ctx->device, 1, &current_frame.render_fence, true, 1'000'000'000));
         // reset render fence
         VK_CHECK_MACRO(vkResetFences(ctx->device, 1, &current_frame.render_fence));
 
+        // delete old frame specific stuff
+        current_frame.deletion_queue.flush();
+        //current_frame.frame_descriptors.clear_pools();
+
         // get swapchain image, signal the current swapchain semaphore when ready
         uint32_t swapchain_image_idx;
-        VkResult e = vkAcquireNextImageKHR(ctx->device, m_swapchain.swapchain, 100000000, current_frame.swapchain_semaphore, nullptr, &swapchain_image_idx);
+        VkResult e = vkAcquireNextImageKHR(ctx->device, m_swapchain.swapchain, 1'000'000'000, current_frame.swapchain_semaphore, nullptr, &swapchain_image_idx);
         if (e == VK_ERROR_OUT_OF_DATE_KHR)
         {
             // TODO: assume resize required if out of date
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "vkAcquireNextImageKHR() returned VK_ERROR_OUT_OF_DATE_KHR. Assume this requires a swapchain resize? (not yet implemented)");
             return;
         }
-        else 
+        else
         {
             VK_CHECK_MACRO(e);
         }
 
         VkImage& swapchain_image = m_swapchain.images[swapchain_image_idx];
+        VkSemaphore& render_semaphore = m_swapchain.render_complete_semaphores[swapchain_image_idx]; // render semaphore to tell swapchain our work is done, 1 per swapchain image
 
         // TODO: scale handling?
+        VkExtent2D draw_extent{};
+        draw_extent.width = std::min(m_swapchain.extent.width, m_draw_images.draw_image.extent.width);
+        draw_extent.height = std::min(m_swapchain.extent.height, m_draw_images.draw_image.extent.height);
+
 
         // record command buffer
         VkCommandBuffer cmd = current_frame.main_cmd_buf;
@@ -54,22 +60,34 @@ namespace Wrench {
         VkCommandBufferBeginInfo cmd_begin_info = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
         VK_CHECK_MACRO(vkBeginCommandBuffer(cmd, &cmd_begin_info));
 
-        m_render_graph.render(); // TODO: get cmd and main draw image into here to draw stuff
+        vkutil::transition_image(cmd, m_draw_images.draw_image.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        vkutil::transition_image(cmd, m_draw_images.depth_image.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
-        // TODO: copy draw image to swapchain image
-        [[maybe_unused]] auto _ = swapchain_image;
+        m_render_graph.render(cmd, m_draw_images, scene);
+
+        // copy draw image to swapchain image
+        // TODO: optimize, use only one dependency with two image memory barriers for this
+        vkutil::transition_image(cmd, m_draw_images.draw_image.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        vkutil::transition_image(cmd, swapchain_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        
+        vkutil::copy_image_to_image(cmd, m_draw_images.draw_image.image, swapchain_image, draw_extent, m_swapchain.extent);
+
+        // make swapchain image presentable
+        vkutil::transition_image(cmd, swapchain_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
         // end command buffer
         VK_CHECK_MACRO(vkEndCommandBuffer(cmd));
 
         // submit work to gpu
         VkCommandBufferSubmitInfo cmd_info = vkinit::command_buffer_submit_info(cmd);
+        // need to wait for the swapchain to have given us our image
         VkSemaphoreSubmitInfo wait_info = vkinit::semaphore_submit_info(VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, current_frame.swapchain_semaphore);
-        VkSemaphoreSubmitInfo signal_info = vkinit::semaphore_submit_info(VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, current_frame.render_semaphore);
+        // need to signal the render semaphore so the present engine can wait on this queue submission to be done before presenting
+        VkSemaphoreSubmitInfo signal_info = vkinit::semaphore_submit_info(VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, render_semaphore);
 
         VkSubmitInfo2 submit_info = vkinit::submit_info(&cmd_info, &signal_info, &wait_info);
 
-        // render_fence will be set once graphics work is done, so we can wait on it
+        // render_fence will be signaled once graphics work is done, so we can wait on it
         VK_CHECK_MACRO(vkQueueSubmit2(ctx->gfx_queue, 1, &submit_info, current_frame.render_fence));
 
         // present to screen once frame is ready
@@ -77,7 +95,7 @@ namespace Wrench {
         present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
         present_info.pSwapchains = &m_swapchain.swapchain;
         present_info.swapchainCount = 1;
-        present_info.pWaitSemaphores = &current_frame.render_semaphore;
+        present_info.pWaitSemaphores = &render_semaphore;
         present_info.waitSemaphoreCount = 1;
         present_info.pImageIndices = &swapchain_image_idx;
 
@@ -85,6 +103,7 @@ namespace Wrench {
         if (present_res == VK_ERROR_OUT_OF_DATE_KHR)
         {
             // TODO: resize requested assumed here
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "vkQueuePresentKHR() returned VK_ERROR_OUT_OF_DATE_KHR. Assume this requires a swapchain resize? (not yet implemented)");
         }
         else
         {
@@ -96,6 +115,7 @@ namespace Wrench {
 
     void Renderer::cleanup() noexcept
     {
+        vkDeviceWaitIdle(ctx->device);
         ImGui_ImplVulkan_Shutdown();
         ImGui_ImplSDL3_Shutdown();
         ImGui::DestroyContext();
@@ -110,15 +130,15 @@ namespace Wrench {
         // TODO: break this out into its own function
         // create main render texture / draw image
         VkExtent3D draw_image_extent = { m_window_extent.width, m_window_extent.height, 1 };
-        m_draw_image.format = VK_FORMAT_R16G16B16A16_SFLOAT;
-        m_draw_image.extent = draw_image_extent;
+        m_draw_images.draw_image.format = VK_FORMAT_R16G16B16A16_SFLOAT;
+        m_draw_images.draw_image.extent = draw_image_extent;
         VkImageUsageFlags draw_image_usage =
             VK_IMAGE_USAGE_TRANSFER_DST_BIT
             | VK_IMAGE_USAGE_TRANSFER_SRC_BIT
             | VK_IMAGE_USAGE_STORAGE_BIT
             | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-        VkImageCreateInfo draw_img_create_info = vkinit::image_create_info(m_draw_image.format, draw_image_usage, m_draw_image.extent);
+        VkImageCreateInfo draw_img_create_info = vkinit::image_create_info(m_draw_images.draw_image.format, draw_image_usage, m_draw_images.draw_image.extent);
         
         // allocate using VMA
         // this is reused for the depth texture as well
@@ -126,32 +146,32 @@ namespace Wrench {
         draw_img_allocation_info.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
         draw_img_allocation_info.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
-        vmaCreateImage(ctx->allocator, &draw_img_create_info, &draw_img_allocation_info, &m_draw_image.image, &m_draw_image.allocation, nullptr);
+        vmaCreateImage(ctx->allocator, &draw_img_create_info, &draw_img_allocation_info, &m_draw_images.draw_image.image, &m_draw_images.draw_image.allocation, nullptr);
         // associated image view 
-        VkImageViewCreateInfo img_view_cinfo = vkinit::imageview_create_info(m_draw_image.format, m_draw_image.image, VK_IMAGE_ASPECT_COLOR_BIT);
+        VkImageViewCreateInfo img_view_cinfo = vkinit::imageview_create_info(m_draw_images.draw_image.format, m_draw_images.draw_image.image, VK_IMAGE_ASPECT_COLOR_BIT);
 
-        VkResult draw_img_view_res = vkCreateImageView(ctx->device, &img_view_cinfo, nullptr, &m_draw_image.view);
+        VkResult draw_img_view_res = vkCreateImageView(ctx->device, &img_view_cinfo, nullptr, &m_draw_images.draw_image.view);
         bool draw_img_view_ok = draw_img_view_res == VK_SUCCESS;
 
         // create depth texture / depth image
-        m_depth_image.format = VK_FORMAT_D32_SFLOAT;
-        m_depth_image.extent = draw_image_extent;
+        m_draw_images.depth_image.format = VK_FORMAT_D32_SFLOAT;
+        m_draw_images.depth_image.extent = draw_image_extent;
         VkImageUsageFlags depth_usage =
             VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
             | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-        VkImageCreateInfo depth_cinfo = vkinit::image_create_info(m_depth_image.format, depth_usage, m_depth_image.extent);
-        vmaCreateImage(ctx->allocator, &depth_cinfo, &draw_img_allocation_info, &m_depth_image.image, &m_depth_image.allocation, nullptr);
-        VkImageViewCreateInfo depth_view_cinfo = vkinit::imageview_create_info(m_depth_image.format, m_depth_image.image, VK_IMAGE_ASPECT_DEPTH_BIT);
-        VkResult depth_img_view_res = vkCreateImageView(ctx->device, &depth_view_cinfo, nullptr, &m_depth_image.view);
+        VkImageCreateInfo depth_cinfo = vkinit::image_create_info(m_draw_images.depth_image.format, depth_usage, m_draw_images.depth_image.extent);
+        vmaCreateImage(ctx->allocator, &depth_cinfo, &draw_img_allocation_info, &m_draw_images.depth_image.image, &m_draw_images.depth_image.allocation, nullptr);
+        VkImageViewCreateInfo depth_view_cinfo = vkinit::imageview_create_info(m_draw_images.depth_image.format, m_draw_images.depth_image.image, VK_IMAGE_ASPECT_DEPTH_BIT);
+        VkResult depth_img_view_res = vkCreateImageView(ctx->device, &depth_view_cinfo, nullptr, &m_draw_images.depth_image.view);
         bool depth_img_view_ok = depth_img_view_res == VK_SUCCESS;
 
         ctx->deletion_queue.push_function([=]() 
             {
-                vkDestroyImageView(ctx->device, m_depth_image.view, nullptr);
-                vmaDestroyImage(ctx->allocator, m_depth_image.image, m_depth_image.allocation);
+                vkDestroyImageView(ctx->device, m_draw_images.depth_image.view, nullptr);
+                vmaDestroyImage(ctx->allocator, m_draw_images.depth_image.image, m_draw_images.depth_image.allocation);
 
-                vkDestroyImageView(ctx->device, m_draw_image.view, nullptr);
-                vmaDestroyImage(ctx->allocator, m_draw_image.image, m_draw_image.allocation);
+                vkDestroyImageView(ctx->device, m_draw_images.draw_image.view, nullptr);
+                vmaDestroyImage(ctx->allocator, m_draw_images.draw_image.image, m_draw_images.draw_image.allocation);
             }
         );
 
@@ -182,6 +202,14 @@ namespace Wrench {
         m_swapchain.swapchain = vkb_swapchain.swapchain;
         m_swapchain.images = vkb_swapchain.get_images().value();
         m_swapchain.image_views = vkb_swapchain.get_image_views().value();
+
+        // also create a render semaphore for each swapchain image
+        VkSemaphoreCreateInfo semaphore_cinfo = vkinit::semaphore_create_info();
+        m_swapchain.render_complete_semaphores.resize(m_swapchain.images.size());
+        for (auto i = 0; i < m_swapchain.images.size(); i++)
+        {
+            VK_CHECK_MACRO(vkCreateSemaphore(ctx->device, &semaphore_cinfo, nullptr, &m_swapchain.render_complete_semaphores[i]));
+        }
         return true;
     }
 
@@ -194,6 +222,11 @@ namespace Wrench {
         {
             vkDestroyImageView(ctx->device, m_swapchain.image_views[i], nullptr);
         }
+        // destroy swapchain's render semaphores
+        for (uint32_t i = 0; i < m_swapchain.render_complete_semaphores.size(); i++)
+        {
+            vkDestroySemaphore(ctx->device, m_swapchain.render_complete_semaphores[i], nullptr);
+        }
     }
 
     void Renderer::init_frame_data() noexcept
@@ -204,22 +237,19 @@ namespace Wrench {
         VkCommandPoolCreateInfo cmd_pool_cinfo = vkinit::command_pool_create_info(ctx->gfx_queue_index, flags);
         // also create sync structures per frame:
         // 1 fence to block cpu until gpu is done with frame,
-        // 1 semaphore to wait for swapchain to give us a texture,
-        // 1 semaphore to make swapchain wait for us to finish working with the image
+        // 1 semaphore to wait for swapchain to give us a texture
         VkFenceCreateInfo fence_cinfo = vkinit::fence_create_info(VK_FENCE_CREATE_SIGNALED_BIT);
         VkSemaphoreCreateInfo semaphore_cinfo = vkinit::semaphore_create_info();
         for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++)
         {
             FrameData& tgt_frame = m_frame_data[i];
             // command buffers and pools
-            // TODO: why do I need one command pool per frame?
             VK_CHECK_MACRO(vkCreateCommandPool(ctx->device, &cmd_pool_cinfo, nullptr, &tgt_frame.command_pool));
             VkCommandBufferAllocateInfo cmd_alloc_info = vkinit::command_buffer_allocate_info(tgt_frame.command_pool, 1);
             VK_CHECK_MACRO(vkAllocateCommandBuffers(ctx->device, &cmd_alloc_info, &tgt_frame.main_cmd_buf));
 
             // fences and semaphores
             VK_CHECK_MACRO(vkCreateFence(ctx->device, &fence_cinfo, nullptr, &tgt_frame.render_fence));
-            VK_CHECK_MACRO(vkCreateSemaphore(ctx->device, &semaphore_cinfo, nullptr, &tgt_frame.render_semaphore));
             VK_CHECK_MACRO(vkCreateSemaphore(ctx->device, &semaphore_cinfo, nullptr, &tgt_frame.swapchain_semaphore));
             // remember to delete command pools and sync stuff when done
             ctx->deletion_queue.push_function([=]() 
@@ -227,7 +257,6 @@ namespace Wrench {
                     vkDestroyCommandPool(ctx->device, tgt_frame.command_pool, nullptr);
 
                     vkDestroyFence(ctx->device, tgt_frame.render_fence, nullptr);
-                    vkDestroySemaphore(ctx->device, tgt_frame.render_semaphore, nullptr);
                     vkDestroySemaphore(ctx->device, tgt_frame.swapchain_semaphore, nullptr);
                 }
             );

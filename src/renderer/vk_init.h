@@ -68,6 +68,36 @@ namespace Wrench
 			VkShaderModule shaderModule,
 			const char* entry = "main");
 	} // namespace vkinit
+
+	namespace vkutil
+	{
+		/// <summary>
+		/// Transition an image from one layout to another by inserting a memory barrier. 
+		/// You must track its current layout yourself.
+		/// </summary>
+		/// <param name="cmd"></param>
+		/// <param name="image"></param>
+		/// <param name="currentLayout"></param>
+		/// <param name="newLayout"></param>
+		/// <param name="force_depth"> true if this barrier should force the depth aspect to be transitioned, despite not transitioning to depth attachment optimal</param>
+		void transition_image(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout, bool force_depth = false);
+		/// <summary>
+		/// Copy one image to another via blitting. Only accounts for mip 0.
+		/// </summary>
+		/// <param name="cmd"></param>
+		/// <param name="source"></param>
+		/// <param name="destination"></param>
+		/// <param name="srcSize"></param>
+		/// <param name="dstSize"></param>
+		void copy_image_to_image(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize, VkExtent2D dstSize);
+		/// <summary>
+		/// Generate mipmaps for an image.
+		/// </summary>
+		/// <param name="cmd"></param>
+		/// <param name="image"></param>
+		/// <param name="imageSize"></param>
+		void generate_mipmaps(VkCommandBuffer cmd, VkImage image, VkExtent2D imageSize);
+	} // namespace vkutil
 }; // namespace Wrench
 
 #endif // !VK_INIT_H

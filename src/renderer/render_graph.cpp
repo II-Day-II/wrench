@@ -8,11 +8,11 @@ namespace Wrench
         return true;
     }
 
-    void RenderGraph::render() noexcept
+    void RenderGraph::render(VkCommandBuffer cmd, DrawImages &draw_images, std::unique_ptr<Scene> &scene) noexcept
     {
         for (auto& node : m_nodes)
         {
-            node.run();
+            node.run(cmd, draw_images, scene);
         }
     }
 };
