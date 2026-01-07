@@ -12,6 +12,7 @@ namespace Wrench
 		VmaAllocation allocation;
 		VkExtent3D extent;
 		VkFormat format;
+		VkImageLayout layout;
 	};
 
 	struct AllocatedBuffer
@@ -21,7 +22,14 @@ namespace Wrench
 		VmaAllocationInfo allocation_info;
 	};
 
+	// defined here to avoid circular include in renderer.h
+	struct DrawImages
+	{
+		AllocatedImage draw_image;
+		AllocatedImage depth_image;
+	};
 
+	void set_viewport_and_scissor(VkCommandBuffer cmd, VkExtent2D draw_extent) noexcept;
 
 	namespace vkinit {
 		//> init_cmd
@@ -81,6 +89,8 @@ namespace Wrench
 		/// <param name="newLayout"></param>
 		/// <param name="force_depth"> true if this barrier should force the depth aspect to be transitioned, despite not transitioning to depth attachment optimal</param>
 		void transition_image(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout, bool force_depth = false);
+		void transition_image(VkCommandBuffer cmd, AllocatedImage& image, VkImageLayout newLayout, bool force_depth = false);
+
 		/// <summary>
 		/// Copy one image to another via blitting. Only accounts for mip 0.
 		/// </summary>

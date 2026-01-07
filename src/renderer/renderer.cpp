@@ -3,6 +3,8 @@
 #include "imgui.h"
 #include "backends/imgui_impl_vulkan.h"
 #include "backends/imgui_impl_sdl3.h"
+#include "render_graph_nodes/render_node.h"
+#include "render_graph_nodes/hello_triangle.h"
 
 namespace Wrench {
 
@@ -12,6 +14,14 @@ namespace Wrench {
         bool swapchain_ok = init_swapchain();
         init_frame_data();
         init_imgui();
+
+        //std::vector<std::unique_ptr<RenderNode>> rg_nodes;
+        //rg_nodes.emplace_back(std::make_unique<HelloTriangle>());
+        //std::unique_ptr<RenderNode> hello = std::make_unique<HelloTriangle>();
+        //rg_nodes.push_back(std::move(hello));
+
+        //m_render_graph.set_nodes(rg_nodes);
+
         bool render_graph_ok = m_render_graph.init(vk_ctx);
         return swapchain_ok && render_graph_ok;
     }
@@ -60,14 +70,14 @@ namespace Wrench {
         VkCommandBufferBeginInfo cmd_begin_info = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
         VK_CHECK_MACRO(vkBeginCommandBuffer(cmd, &cmd_begin_info));
 
-        vkutil::transition_image(cmd, m_draw_images.draw_image.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-        vkutil::transition_image(cmd, m_draw_images.depth_image.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+        vkutil::transition_image(cmd, m_draw_images.draw_image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        vkutil::transition_image(cmd, m_draw_images.depth_image, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
         m_render_graph.render(cmd, m_draw_images, scene);
 
         // copy draw image to swapchain image
         // TODO: optimize, use only one dependency with two image memory barriers for this
-        vkutil::transition_image(cmd, m_draw_images.draw_image.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        vkutil::transition_image(cmd, m_draw_images.draw_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         vkutil::transition_image(cmd, swapchain_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         
         vkutil::copy_image_to_image(cmd, m_draw_images.draw_image.image, swapchain_image, draw_extent, m_swapchain.extent);
@@ -151,6 +161,7 @@ namespace Wrench {
         VkImageViewCreateInfo img_view_cinfo = vkinit::imageview_create_info(m_draw_images.draw_image.format, m_draw_images.draw_image.image, VK_IMAGE_ASPECT_COLOR_BIT);
 
         VkResult draw_img_view_res = vkCreateImageView(ctx->device, &img_view_cinfo, nullptr, &m_draw_images.draw_image.view);
+        m_draw_images.draw_image.layout = VK_IMAGE_LAYOUT_UNDEFINED;
         bool draw_img_view_ok = draw_img_view_res == VK_SUCCESS;
 
         // create depth texture / depth image
@@ -163,6 +174,7 @@ namespace Wrench {
         vmaCreateImage(ctx->allocator, &depth_cinfo, &draw_img_allocation_info, &m_draw_images.depth_image.image, &m_draw_images.depth_image.allocation, nullptr);
         VkImageViewCreateInfo depth_view_cinfo = vkinit::imageview_create_info(m_draw_images.depth_image.format, m_draw_images.depth_image.image, VK_IMAGE_ASPECT_DEPTH_BIT);
         VkResult depth_img_view_res = vkCreateImageView(ctx->device, &depth_view_cinfo, nullptr, &m_draw_images.depth_image.view);
+        m_draw_images.depth_image.layout = VK_IMAGE_LAYOUT_UNDEFINED;
         bool depth_img_view_ok = depth_img_view_res == VK_SUCCESS;
 
         ctx->deletion_queue.push_function([=]() 

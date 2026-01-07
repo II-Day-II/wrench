@@ -38,10 +38,12 @@ namespace Wrench {
 
     class Renderer
     {
+
         std::shared_ptr<VulkanCtx> ctx;
         Swapchain m_swapchain;
         RenderGraph m_render_graph;
     public:
+
         bool init(std::shared_ptr<VulkanCtx> &vk_ctx) noexcept;
         void render(std::unique_ptr<Scene> &scene) noexcept;
         void resize();

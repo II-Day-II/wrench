@@ -5,6 +5,26 @@
 namespace Wrench
 {
 
+    void set_viewport_and_scissor(VkCommandBuffer cmd, VkExtent2D draw_extent) noexcept
+    {
+        VkViewport viewport = {};
+        VkRect2D scissor = {};
+
+        viewport.x = 0.0f;
+        viewport.y = 0.0f;
+        viewport.width = (float)draw_extent.width;
+        viewport.height = (float)draw_extent.height;
+        viewport.minDepth = 0.0f; // TODO: should maybe be reversed depth?
+        viewport.maxDepth = 1.0f;
+
+        scissor.offset.x = 0;
+        scissor.offset.y = 0;
+        scissor.extent = draw_extent;
+
+        vkCmdSetScissor(cmd, 0, 1, &scissor);
+        vkCmdSetViewport(cmd, 0, 1, &viewport);
+    };
+
     //> init_cmd
     VkCommandPoolCreateInfo vkinit::command_pool_create_info(uint32_t queueFamilyIndex,
         VkCommandPoolCreateFlags flags /*= 0*/)
@@ -368,6 +388,12 @@ namespace Wrench
         depInfo.pImageMemoryBarriers = &imageBarrier;
 
         vkCmdPipelineBarrier2(cmd, &depInfo); // record the pipeline barrier to the command buffer
+    }
+
+    void vkutil::transition_image(VkCommandBuffer cmd, AllocatedImage& image, VkImageLayout newLayout, bool force_depth)
+    {
+        transition_image(cmd, image.image, image.layout, newLayout, force_depth);
+        image.layout = newLayout;
     }
 
     void vkutil::copy_image_to_image(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize, VkExtent2D dstSize)

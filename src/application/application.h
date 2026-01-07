@@ -15,6 +15,7 @@ namespace Wrench {
 
     class Application
     {
+
         Statistics stats;
 
         struct SDL_Window* m_window {nullptr};
@@ -23,6 +24,7 @@ namespace Wrench {
         std::shared_ptr<VulkanCtx> m_ctx;
 
     public:
+
         bool init() noexcept;
         void run() noexcept;
         void exit() noexcept;
