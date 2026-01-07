@@ -9,6 +9,7 @@
 #include "vk_init.h"
 #include "SDL3/SDL.h"
 
+
 namespace Wrench {
 
     struct Swapchain
@@ -42,6 +43,7 @@ namespace Wrench {
         std::shared_ptr<VulkanCtx> ctx;
         Swapchain m_swapchain;
         RenderGraph m_render_graph;
+
     public:
 
         bool init(std::shared_ptr<VulkanCtx> &vk_ctx) noexcept;

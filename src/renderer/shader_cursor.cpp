@@ -141,30 +141,5 @@ namespace Wrench
 			//... stage flags, immutable samplers...
 			m_bindings.push_back(layout_binding);
 		}
-
-		//switch (type_layout->getKind())
-		//{
-		//case slang::TypeReflection::Kind::Scalar:
-		//case slang::TypeReflection::Kind::Vector:
-		//case slang::TypeReflection::Kind::Matrix:
-		//	return; // only POD in these
-		//	break;
-		//case slang::TypeReflection::Kind::Resource:
-		//	VkDescriptorSetLayoutBinding layout_binding;
-		//	layout_binding.binding = m_binding_index++;
-		//	//layout_binding.descriptorType = ...;
-		//	layout_binding.descriptorCount = element_count;
-		//	m_bindings.push_back(layout_binding);
-		//	break;
-		//case slang::TypeReflection::Kind::Array:
-		//	add_bindings_from(type_layout->getElementTypeLayout(), element_count * type_layout->getElementCount());
-		//	break;
-		//case slang::TypeReflection::Kind::Struct:
-		//	for (uint32_t f = 0; f < type_layout->getFieldCount(); f++)
-		//	{
-		//		add_bindings_from(type_layout->getFieldByIndex(f)->getTypeLayout(), element_count);
-		//	}
-		//	break;
-		//}
 	}
 } // namespace Wrench

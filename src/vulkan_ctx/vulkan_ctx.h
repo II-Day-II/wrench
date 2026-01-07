@@ -6,6 +6,8 @@
 #include "vulkan/vk_enum_string_helper.h"
 #include "SDL3/SDL.h"
 #include "vk_mem_alloc.h"
+#include "slang/slang.h"
+#include "slang/slang-com-ptr.h"
 #include "../util/util.h"
 
 #define VK_CHECK_MACRO(x)   \
@@ -21,6 +23,14 @@
 namespace Wrench 
 {
 	void vk_check_fn(VkResult res);
+
+
+	struct ShaderCompilerCtx
+	{
+		Slang::ComPtr<slang::IGlobalSession> m_slang_global_session;
+		slang::SessionDesc m_session_desc;
+		ShaderCompilerCtx();
+	};
 	
 	struct VulkanCtx 
 	{
@@ -39,6 +49,7 @@ namespace Wrench
 
 		VmaAllocator allocator = VK_NULL_HANDLE;
 		util::DeletionQueue deletion_queue;
+		ShaderCompilerCtx shader_compiler;
 
 		SDL_Window* window = nullptr;
 
