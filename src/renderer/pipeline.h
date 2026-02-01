@@ -12,7 +12,7 @@ namespace Wrench
 		VkPipelineLayout layout;
 	};
 
-	struct PipelineBuilder
+	struct GraphicsPipelineBuilder
 	{
 		std::vector<VkPipelineShaderStageCreateInfo> m_shader_stage_infos;
 
@@ -25,23 +25,23 @@ namespace Wrench
 		VkPipelineRenderingCreateInfo m_render_info;
 		VkFormat m_color_attachment_format;
 
-		PipelineBuilder() { clear(); };
+		GraphicsPipelineBuilder() { clear(); };
 		void clear();
 
 		Pipeline build_pipeline(VkDevice device);
 
-		PipelineBuilder& set_shaders(VkShaderModule vertex_shader, VkShaderModule fragment_shader);
-		PipelineBuilder& set_input_topology(VkPrimitiveTopology topology);
-		PipelineBuilder& set_polygon_mode(VkPolygonMode mode);
-		PipelineBuilder& set_cull_mode(VkCullModeFlags cull_mode, VkFrontFace front_face);
-		PipelineBuilder& set_multisampling_none();
-		PipelineBuilder& set_blending_none();
-		PipelineBuilder& set_blending_additive();
-		PipelineBuilder& set_blending_alpha();
-		PipelineBuilder& set_color_attachment_format(VkFormat format);
-		PipelineBuilder& set_depth_attachment_format(VkFormat format);
-		PipelineBuilder& set_depth_test_off();
-		PipelineBuilder& set_depth_test_on(bool depth_write_enable, VkCompareOp op);
+		GraphicsPipelineBuilder& set_shaders(VkShaderModule vertex_shader, VkShaderModule fragment_shader);
+		GraphicsPipelineBuilder& set_input_topology(VkPrimitiveTopology topology);
+		GraphicsPipelineBuilder& set_polygon_mode(VkPolygonMode mode);
+		GraphicsPipelineBuilder& set_cull_mode(VkCullModeFlags cull_mode, VkFrontFace front_face);
+		GraphicsPipelineBuilder& set_multisampling_none();
+		GraphicsPipelineBuilder& set_blending_none();
+		GraphicsPipelineBuilder& set_blending_additive();
+		GraphicsPipelineBuilder& set_blending_alpha();
+		GraphicsPipelineBuilder& set_color_attachment_format(VkFormat format);
+		GraphicsPipelineBuilder& set_depth_attachment_format(VkFormat format);
+		GraphicsPipelineBuilder& set_depth_test_off();
+		GraphicsPipelineBuilder& set_depth_test_on(bool depth_write_enable, VkCompareOp op);
 	};
 
 

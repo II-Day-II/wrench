@@ -17,15 +17,17 @@ namespace Wrench
 
 	};
 
-	struct Shader
+	struct ShaderProgram
 	{
 		std::shared_ptr<VulkanCtx> m_ctx;
-		Slang::ComPtr<slang::ISession> slang_session;
-		Slang::ComPtr<slang::IModule> slang_module;
+		Slang::ComPtr<slang::IModule> slang_module; // also holds a reference to the slang::ISession that created it
+		std::vector<Slang::ComPtr<slang::IComponentType>> entry_points;
+		Slang::ComPtr<slang::IComponentType> linked_program;
 
 		ShaderKernel compile(const char* entry_point);
+		void init();
 	};
-	Shader load_shader(std::shared_ptr<VulkanCtx>& compiler_ctx, const char* name, const char* filename);
+	ShaderProgram load_shader(std::shared_ptr<VulkanCtx>& compiler_ctx, const char* name, const char* filename, std::vector<const char*> entry_point_names);
 
 }; // namespace Wrench
 
